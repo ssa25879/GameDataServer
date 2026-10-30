@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Microsoft.Data.Sqlite;   // ← 추가: SQLite 데이터베이스를 여는 도구.
+using Microsoft.Data.Sqlite; // ← 추가: SQLite 데이터베이스를 여는 도구.
 
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
@@ -33,14 +33,14 @@ using (var conn = new SqliteConnection(connectionString))
     conn.Open();
     var create = conn.CreateCommand();
     create.CommandText = """
-        CREATE TABLE IF NOT EXISTS monsters (
-            id     INTEGER PRIMARY KEY AUTOINCREMENT,
-            name   TEXT    NOT NULL,
-            hp     INTEGER NOT NULL,
-            attack INTEGER NOT NULL,
-            speed  REAL    NOT NULL
-        )
-        """;
+                         CREATE TABLE IF NOT EXISTS monsters (
+                             id     INTEGER PRIMARY KEY AUTOINCREMENT,
+                             name   TEXT    NOT NULL,
+                             hp     INTEGER NOT NULL,
+                             attack INTEGER NOT NULL,
+                             speed  REAL    NOT NULL
+                         )
+                         """;
     create.ExecuteNonQuery();
 
     // 테이블이 비어 있을 때만 1회차의 monsters.json을 초기 데이터로 넣는다. 그래서 재시작해도 중복되지 않는다
@@ -68,7 +68,7 @@ using (var conn = new SqliteConnection(connectionString))
 static List<Monster> ReadMonsters(SqliteDataReader reader)
 {
     var list = new List<Monster>();
-    while (reader.Read())   // 한 줄(한 마리)씩
+    while (reader.Read()) // 한 줄(한 마리)씩
     {
         list.Add(new Monster
         {
@@ -79,6 +79,7 @@ static List<Monster> ReadMonsters(SqliteDataReader reader)
             Speed = reader.GetFloat(4)
         });
     }
+
     return list;
 }
 
@@ -101,7 +102,7 @@ app.MapGet("/monsters", () => new { monsters = LoadAllMonsters(connectionString)
 // ── 테스트용 1: 일부러 느린 서버 (기본 3초). 04 파트에서 기다리는 동안 Unity가 멈추는지 본다 ──
 app.MapGet("/monsters/slow", async (int ms = 3000) =>
 {
-    await Task.Delay(ms);   // ms 밀리초 기다린다. ?ms=8000처럼 바꿀 수 있다
+    await Task.Delay(ms); // ms 밀리초 기다린다. ?ms=8000처럼 바꿀 수 있다
     return new { monsters = LoadAllMonsters(connectionString) };
 });
 
@@ -112,9 +113,10 @@ app.MapGet("/monsters/big", (int count = 20000) =>
     var big = new List<Monster>(count);
     for (int i = 1; i <= count; i++)
     {
-        var src = monsters[(i - 1) % monsters.Count];   // 다섯 마리를 돌려 가며 복제한다
+        var src = monsters[(i - 1) % monsters.Count]; // 다섯 마리를 돌려 가며 복제한다
         big.Add(new Monster { Id = i, Name = $"{src.Name} #{i}", Hp = src.Hp, Attack = src.Attack, Speed = src.Speed });
     }
+
     return new { monsters = big };
 });
 
@@ -124,7 +126,7 @@ app.MapGet("/monsters/{id:int}", (int id) =>
     conn.Open();
     var cmd = conn.CreateCommand();
     cmd.CommandText = "SELECT id, name, hp, attack, speed FROM monsters WHERE id = $id";
-    cmd.Parameters.AddWithValue("$id", id);   // 값은 글자로 이어 붙이지 않고 파라미터로 넘긴다
+    cmd.Parameters.AddWithValue("$id", id); // 값은 글자로 이어 붙이지 않고 파라미터로 넘긴다
     using var reader = cmd.ExecuteReader();
     var found = ReadMonsters(reader);
     return found.Count == 0
@@ -142,16 +144,16 @@ app.MapPost("/monsters", (Monster m) =>
     conn.Open();
     var cmd = conn.CreateCommand();
     cmd.CommandText = """
-        INSERT INTO monsters (name, hp, attack, speed) VALUES ($name, $hp, $attack, $speed);
-        SELECT last_insert_rowid();
-        """;
+                      INSERT INTO monsters (name, hp, attack, speed) VALUES ($name, $hp, $attack, $speed);
+                      SELECT last_insert_rowid();
+                      """;
     cmd.Parameters.AddWithValue("$name", m.Name);
     cmd.Parameters.AddWithValue("$hp", m.Hp);
     cmd.Parameters.AddWithValue("$attack", m.Attack);
     cmd.Parameters.AddWithValue("$speed", m.Speed);
-    m.Id = (int)(long)cmd.ExecuteScalar()!;   // DB가 붙여 준 새 id
+    m.Id = (int)(long)cmd.ExecuteScalar()!; // DB가 붙여 준 새 id
 
-    return Results.Created($"/monsters/{m.Id}", m);   // 201 Created + 새 몬스터
+    return Results.Created($"/monsters/{m.Id}", m); // 201 Created + 새 몬스터
 });
 
 // ── 2회차. 몬스터 고치기 — PUT은 "이걸로 바꿔라". 본문의 JSON으로 그 id의 줄을 통째로 바꾼다 ──
@@ -169,13 +171,13 @@ app.MapPut("/monsters/{id:int}", (int id, Monster m) =>
     cmd.Parameters.AddWithValue("$attack", m.Attack);
     cmd.Parameters.AddWithValue("$speed", m.Speed);
     cmd.Parameters.AddWithValue("$id", id);
-    int changed = cmd.ExecuteNonQuery();   // 바뀐 줄 수. 그 id가 없으면 0
+    int changed = cmd.ExecuteNonQuery(); // 바뀐 줄 수. 그 id가 없으면 0
 
     if (changed == 0)
         return Results.NotFound(new { error = $"id {id} 몬스터가 없습니다." });
 
-    m.Id = id;                 // 본문의 id는 무시하고 주소의 id를 쓴다
-    return Results.Ok(m);      // 200 OK + 바뀐 몬스터
+    m.Id = id; // 본문의 id는 무시하고 주소의 id를 쓴다
+    return Results.Ok(m); // 200 OK + 바뀐 몬스터
 });
 
 // ── 2회차. 몬스터 삭제 — DELETE는 "지워라". 본문은 없고 주소의 id만 쓴다 ──
@@ -186,51 +188,53 @@ app.MapDelete("/monsters/{id:int}", (int id) =>
     var cmd = conn.CreateCommand();
     cmd.CommandText = "DELETE FROM monsters WHERE id = $id";
     cmd.Parameters.AddWithValue("$id", id);
-    int deleted = cmd.ExecuteNonQuery();   // 지운 줄 수
+    int deleted = cmd.ExecuteNonQuery(); // 지운 줄 수
 
     return deleted == 0
         ? Results.NotFound(new { error = $"id {id} 몬스터가 없습니다." })
-        : Results.NoContent();             // 204 No Content. 돌려줄 본문이 없다
+        : Results.NoContent(); // 204 No Content. 돌려줄 본문이 없다
 });
 
 // ── 더 해보기. 일부만 고치기 — PATCH는 "이 칸만 바꿔라". 보낸 칸만 바뀌고 나머지는 그대로 ──
 app.MapPatch("/monsters/{id:int}", (int id, MonsterPatch p) =>
 {
-if (p.Name != null && string.IsNullOrWhiteSpace(p.Name))
-return Results.BadRequest(new { error = "name은 비어 있으면 안 됩니다." });
+    if (p.Name != null && string.IsNullOrWhiteSpace(p.Name))
+        return Results.BadRequest(new { error = "name은 비어 있으면 안 됩니다." });
 
-using var conn = new SqliteConnection(connectionString);
-conn.Open();
-var cmd = conn.CreateCommand();
+    using var conn = new SqliteConnection(connectionString);
+    conn.Open();
+    var cmd = conn.CreateCommand();
 // COALESCE($x, x): 보낸 값이 NULL이면 기존 값 x를 그대로 둔다
-cmd.CommandText = """
-        UPDATE monsters
-        SET name   = COALESCE($name, name),
-            hp     = COALESCE($hp, hp),
-            attack = COALESCE($attack, attack),
-            speed  = COALESCE($speed, speed)
-        WHERE id = $id
-        """;
+    cmd.CommandText = """
+                      UPDATE monsters
+                      SET name   = COALESCE($name, name),
+                          hp     = COALESCE($hp, hp),
+                          attack = COALESCE($attack, attack),
+                          speed  = COALESCE($speed, speed)
+                      WHERE id = $id
+                      """;
 // 안 보낸 칸은 null이다. SQLite 파라미터에는 null 대신 DBNull.Value를 넣어야 한다
-cmd.Parameters.AddWithValue("$name", (object?)p.Name ?? DBNull.Value);
-cmd.Parameters.AddWithValue("$hp", (object?)p.Hp ?? DBNull.Value);
-cmd.Parameters.AddWithValue("$attack", (object?)p.Attack ?? DBNull.Value);
-cmd.Parameters.AddWithValue("$speed", (object?)p.Speed ?? DBNull.Value);
-cmd.Parameters.AddWithValue("$id", id);
-int changed = cmd.ExecuteNonQuery();   // 바뀐 줄 수. 그 id가 없으면 0
+    cmd.Parameters.AddWithValue("$name", (object?)p.Name ?? DBNull.Value);
+    cmd.Parameters.AddWithValue("$hp", (object?)p.Hp ?? DBNull.Value);
+    cmd.Parameters.AddWithValue("$attack", (object?)p.Attack ?? DBNull.Value);
+    cmd.Parameters.AddWithValue("$speed", (object?)p.Speed ?? DBNull.Value);
+    cmd.Parameters.AddWithValue("$id", id);
+    int changed = cmd.ExecuteNonQuery(); // 바뀐 줄 수. 그 id가 없으면 0
 
-if (changed == 0)
-return Results.NotFound(new { error = $"id {id} 몬스터가 없습니다." });
+    if (changed == 0)
+        return Results.NotFound(new { error = $"id {id} 몬스터가 없습니다." });
 
 // 바뀐 뒤의 몬스터를 다시 읽어 돌려준다
-var read = conn.CreateCommand();
-read.CommandText = "SELECT id, name, hp, attack, speed FROM monsters WHERE id = $id";
-read.Parameters.AddWithValue("$id", id);
-using var reader = read.ExecuteReader();
-return Results.Ok(ReadMonsters(reader)[0]);   // 200 OK + 바뀐 몬스터
+    var read = conn.CreateCommand();
+    read.CommandText = "SELECT id, name, hp, attack, speed FROM monsters WHERE id = $id";
+    read.Parameters.AddWithValue("$id", id);
+    using var reader = read.ExecuteReader();
+    return Results.Ok(ReadMonsters(reader)[0]); // 200 OK + 바뀐 몬스터
 });
 
-app.Run("http://localhost:5000");
+// 바꾼 뒤 — PORT가 없으면(내 PC) 5000, 있으면(Render) 그 번호s
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+app.Run($"http://0.0.0.0:{port}");
 
 // PATCH 본문 모양. 안 보낸 칸은 null로 들어오므로 전부 nullable(?)이다. 파일 맨 아래 Monster 옆에 둔다
 class MonsterPatch

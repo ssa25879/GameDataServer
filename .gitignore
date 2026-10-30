@@ -13,6 +13,7 @@ Thumbs.db
 publish/
 *.nupkg
 *.snupkg
+app/
 
 # Local SQLite data (created from Data/monsters.json on first run)
 *.db
