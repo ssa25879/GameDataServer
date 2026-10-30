@@ -3,6 +3,9 @@
 Unity 클라이언트와 HTTP·JSON 통신을 연습하기 위한 ASP.NET Core Minimal API 서버입니다.
 몬스터 데이터를 SQLite에 저장하고 조회·추가·수정·삭제합니다.
 
+서버를 독립적으로 배포하기 위해 [ServerDataLearn 저장소](https://github.com/ssa25879/ServerDataLearn.git)에서 분리했습니다.
+연동하는 Unity 클라이언트와 관련 실습 자료는 기존 ServerDataLearn 저장소에서 관리합니다.
+
 ## 개발 환경과 실행
 
 - .NET 10 SDK
