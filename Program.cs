@@ -43,6 +43,17 @@ using (var conn = new SqliteConnection(connectionString))
                          """;
     create.ExecuteNonQuery();
 
+    // 이름마다 최고 점수 하나만 저장한다. id는 최초 등록 순서를 유지한다.
+    using var createScores = conn.CreateCommand();
+    createScores.CommandText = """
+                               CREATE TABLE IF NOT EXISTS scores (
+                                   id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                                   name  TEXT NOT NULL UNIQUE,
+                                   score INTEGER NOT NULL CHECK(score >= 0)
+                               )
+                               """;
+    createScores.ExecuteNonQuery();
+
     // 테이블이 비어 있을 때만 1회차의 monsters.json을 초기 데이터로 넣는다. 그래서 재시작해도 중복되지 않는다
     var count = conn.CreateCommand();
     count.CommandText = "SELECT COUNT(*) FROM monsters";
@@ -95,6 +106,84 @@ static List<Monster> LoadAllMonsters(string connectionString)
 }
 
 app.MapGet("/hello", () => "안녕하세요, 서버입니다.");
+
+// 랭킹은 점수 내림차순, 동점이면 최초 등록 순서로 최대 10명을 반환한다.
+app.MapGet("/scores", () =>
+{
+    using var conn = new SqliteConnection(connectionString);
+    conn.Open();
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = "SELECT id, name, score FROM scores ORDER BY score DESC, id ASC LIMIT 10";
+    using var reader = cmd.ExecuteReader();
+    var scores = new List<object>();
+    while (reader.Read())
+    {
+        scores.Add(new
+        {
+            rank = scores.Count + 1,
+            id = reader.GetInt64(0),
+            name = reader.GetString(1),
+            score = reader.GetInt32(2)
+        });
+    }
+
+    return Results.Ok(new { scores });
+});
+
+app.MapPost("/scores", async (HttpRequest request) =>
+{
+    // 직접 JSON을 확인해 누락된 점수와 정상적인 0점을 구별한다.
+    JsonDocument document;
+    try
+    {
+        document = await JsonDocument.ParseAsync(request.Body, cancellationToken: request.HttpContext.RequestAborted);
+    }
+    catch (JsonException)
+    {
+        return Results.BadRequest(new { error = "올바른 JSON으로 이름과 점수를 보내세요." });
+    }
+
+    using (document)
+    {
+        var body = document.RootElement;
+        if (body.ValueKind != JsonValueKind.Object ||
+            !body.TryGetProperty("name", out var nameValue) || nameValue.ValueKind != JsonValueKind.String ||
+            string.IsNullOrWhiteSpace(nameValue.GetString()))
+        {
+            return Results.BadRequest(new { error = "이름을 입력하세요." });
+        }
+
+        if (!body.TryGetProperty("score", out var scoreValue) || scoreValue.ValueKind != JsonValueKind.Number ||
+            !scoreValue.TryGetInt32(out var score))
+        {
+            return Results.BadRequest(new { error = "점수는 0부터 2147483647 사이의 정수로 입력하세요." });
+        }
+
+        if (score < 0)
+            return Results.BadRequest(new { error = "점수는 0 이상이어야 합니다." });
+
+        var name = nameValue.GetString()!.Trim();
+        using var conn = new SqliteConnection(connectionString);
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        // 한 SQL에서 최고 점수를 유지하고 저장값을 반환한다. 기존 id는 바뀌지 않는다.
+        cmd.CommandText = """
+                          INSERT INTO scores (name, score) VALUES ($name, $score)
+                          ON CONFLICT(name) DO UPDATE SET score = MAX(scores.score, excluded.score)
+                          RETURNING id, name, score
+                          """;
+        cmd.Parameters.AddWithValue("$name", name);
+        cmd.Parameters.AddWithValue("$score", score);
+        using var reader = cmd.ExecuteReader();
+        reader.Read();
+        return Results.Created("/scores", new
+        {
+            id = reader.GetInt64(0),
+            name = reader.GetString(1),
+            score = reader.GetInt32(2)
+        });
+    }
+});
 
 // ── 몬스터 조회 — 이제 파일이 아니라 DB에서 읽는다 ─────────────────────
 app.MapGet("/monsters", () => new { monsters = LoadAllMonsters(connectionString) });
